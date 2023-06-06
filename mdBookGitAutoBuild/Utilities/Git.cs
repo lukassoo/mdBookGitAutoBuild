@@ -7,11 +7,6 @@ public static class Git
 {
     static readonly string repoDirectory = Directory.GetCurrentDirectory() + "/GitRepo";
 
-    public static bool IsInstalled()
-    {
-        return File.Exists("/usr/bin/git");
-    }
-
     public static bool IsRepoCloned()
     {
         return Directory.Exists(repoDirectory) &&

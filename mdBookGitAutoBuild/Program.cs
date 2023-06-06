@@ -9,42 +9,19 @@ internal static class Program
     static async Task Main()
     {
         Console.WriteLine("Starting");
-        Console.WriteLine("Working directory: " + Directory.GetCurrentDirectory());
-
-        if (!Git.IsInstalled())
-        {
-            Console.WriteLine("git not installed - can't work");
-            Environment.Exit(1);
-            return;
-        }
-        
-        if (!SshKeygen.IsInstalled())
-        {
-            Console.WriteLine("ssh-keygen not installed - can't work");
-            Environment.Exit(1);
-            return;
-        }
 
         if (!SshKeygen.HasKey())
         {
             Console.WriteLine("No ssh keys found, generating...");
 
-            bool success = await SshKeygen.GenerateKey();
-
-            if (!success)
+            bool keyGenerated = await SshKeygen.GenerateKey();
+            if (!keyGenerated)
             {
                 Console.WriteLine("Failed to generate new ssh keys - can't work");
+                
                 Environment.Exit(1);
-                return;
             }
-            
-            // string? repoLink = Environment.GetEnvironmentVariable("GIT_REPO_LINK");
-            //
-            // await SshKeyScan.ScanAndTrust(repoLink);
-            //
-            // Thread.Sleep(200_000);
-            
-            
+
             Console.WriteLine("New ssh keys generated, public key:");
             Console.WriteLine("--------------------------------------------------------------------");
             Console.WriteLine();
@@ -52,53 +29,48 @@ internal static class Program
             Console.WriteLine("--------------------------------------------------------------------");
             Console.WriteLine("Use this to grant access to private repositories - grant read-only permissions of course)");
             Console.WriteLine("Exiting since you need to add the key to git first - do that and restart the container");
+            
             Environment.Exit(1);
-            return;
         }
-
-        bool freshlyCloned = false;
         
         if (!Git.IsRepoCloned())
         {
             string? repoLink = Environment.GetEnvironmentVariable("GIT_REPO_LINK");
-
             if (string.IsNullOrEmpty(repoLink))
             {
                 Console.WriteLine("No repo link provided - set the GIT_REPO_LINK environment variable with a valid git repo link");
+                
                 Environment.Exit(1);
-                return;
             }
 
             Console.WriteLine("Scanning repo ssh keys and adding to trusted");
-            bool keyScanSuccess = await SshKeyScan.ScanAndTrust(repoLink);
-
-            if (!keyScanSuccess)
+            bool keyScanCompleted = await SshKeyScan.ScanAndTrust(repoLink);
+            if (!keyScanCompleted)
             {
                 Console.WriteLine("Scanning failed, check repo link");
+                
                 Environment.Exit(1);
-                return;
             }
             
-            bool success = await Git.Clone(repoLink);
+            bool cloneCompleted = await Git.Clone(repoLink);
 
-            if (!success)
+            if (!cloneCompleted)
             {
                 Console.WriteLine("Clone failed, exiting");
+                
                 Environment.Exit(1);
-                return;
             }
-
-            freshlyCloned = true;
         }
         else
         {
             Console.WriteLine("Git Repo is already cloned");
-        }
-
-        if (!freshlyCloned)
-        {
-            Console.WriteLine("Pulling repo...");
-            await Git.Pull();
+            Console.WriteLine("Pulling...");
+            
+            bool pullCompleted = await Git.Pull();
+            if (!pullCompleted)
+            {
+                Console.WriteLine("Failed to pull repo");
+            }
         }
 
         lastCommitTime = await Git.GetLastCommitTime();
@@ -110,7 +82,7 @@ internal static class Program
         Console.WriteLine("Staring http server (port 80)");
         Python3.StartHttpServer();
 
-        bool usingAnyMethod = false;
+        bool usingAnyUpdateMethod = false;
         
         string? shouldUseWebHook = Environment.GetEnvironmentVariable("USE_WEB_HOOK");
         if (!string.IsNullOrEmpty(shouldUseWebHook))
@@ -118,7 +90,7 @@ internal static class Program
             Console.WriteLine("Detected USE_WEB_HOOK - starting http web hook listener");
 
             StartWebHook();
-            usingAnyMethod = true;
+            usingAnyUpdateMethod = true;
         }
 
         string? shouldPullOnInterval = Environment.GetEnvironmentVariable("USE_PULL_ON_INTERVAL");
@@ -127,15 +99,15 @@ internal static class Program
             Console.WriteLine("Detected USE_PULL_ON_INTERVAL - will pull repo every set time interval");
 
             StartRepoPullOnInterval();
-            usingAnyMethod = true;
+            usingAnyUpdateMethod = true;
         }
 
-        if (!usingAnyMethod)
+        if (!usingAnyUpdateMethod)
         {
             Console.WriteLine("No update method used, define environment variables: USE_WEB_HOOK or USE_PULL_ON_INTERVAL (optionally both)");
             Console.WriteLine("No point running without a way to update - exiting");
+            
             Environment.Exit(1);
-            return;
         }
         
         while (!Environment.HasShutdownStarted)
@@ -156,7 +128,7 @@ internal static class Program
                 string newCommitTime = await Git.GetLastCommitTime();
                 if (lastCommitTime == newCommitTime)
                 {
-                    Console.WriteLine("New commit time is the same as last - skipping mdBook rebuild");
+                    Console.WriteLine("No new commits - skipping mdBook rebuild");
                     return;
                 }
                 
@@ -164,6 +136,7 @@ internal static class Program
 
                 Console.WriteLine("Building mdBook...");
                 await MdBook.Build();
+                
                 Console.WriteLine("Update completed");
             };
 
@@ -178,6 +151,7 @@ internal static class Program
             TimeSpan pullIntervalTimeSpan = TimeSpan.FromHours(24);
             
             string? repoPullInterval = Environment.GetEnvironmentVariable("REPO_PULL_INTERVAL_HOURS");
+            
             if (!string.IsNullOrEmpty(repoPullInterval))
             {
                 Console.WriteLine("Detected REPO_PULL_INTERVAL_HOURS variable");
@@ -202,15 +176,28 @@ internal static class Program
             while (!Environment.HasShutdownStarted)
             {
                 await Task.Delay((int)pullIntervalTimeSpan.TotalMilliseconds);
-                await Git.Pull();
+                
+                Console.WriteLine("Pulling on interval");
+                
+                bool successfulPull = await Git.Pull();
+                if (!successfulPull)
+                {
+                    Console.WriteLine("Failed to pull");
+                    continue;
+                }
 
                 string newCommitTime = await Git.GetLastCommitTime();
                 if (lastCommitTime != newCommitTime)
                 {
                     lastCommitTime = newCommitTime;
 
-                    Console.WriteLine("Detected new commit, rebuilding mdBook");
+                    Console.WriteLine("Detected a new commit, rebuilding mdBook");
+                    
                     await MdBook.Build();
+                }
+                else
+                {
+                    Console.WriteLine("No new commits - skipping mdBook rebuild");
                 }
             }
             

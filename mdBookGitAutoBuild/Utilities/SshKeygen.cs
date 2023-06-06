@@ -4,11 +4,6 @@ namespace mdBookGitAutoBuild.Utilities;
 
 public static class SshKeygen
 {
-    public static bool IsInstalled()
-    {
-        return File.Exists("/usr/bin/ssh-keygen");
-    }
-
     public static bool HasKey()
     {
         return File.Exists("/root/.ssh/id_ed25519") &&
