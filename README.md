@@ -1,5 +1,5 @@
 # mdBookGitAutoBuild
-A simple app for automatic mdBook building from a git repository
+A simple app for automatic [mdBook](https://github.com/rust-lang/mdBook) building from a git repository
 
 Do you use mdBook ?  
 Don't want to manually build and update files on a web host ?
