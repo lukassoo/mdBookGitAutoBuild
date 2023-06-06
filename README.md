@@ -31,6 +31,16 @@ The keys are kept on the host to prevent constant re-generation and to allow eas
    - 8080:8080 for the web hook - **add if you use it with USE_WEB_HOOK (-p 8080:8080)**
    - If you want to start multiple instances you will have to adjust host side bindings
 
+Use with web hook:
+
+    docker run -d --name mdBookGitAutoBuilder \
+    -e GIT_REPO_LINK=<YOUR_GIT_REPO_LINK> \
+    -e USE_WEB_HOOK='1' \
+    -v /root/.ssh:/root/.ssh \
+    -p 80:80 \
+    -p 8080:8080 \
+    lukassoo/mdbook-git-auto-build:latest
+
 Either USE_PULL_ON_INTERVAL or USE_WEB_HOOK must be used, else there is no point in even running since there will never by any pulling/updating  
 You can use both but using a web hook makes interval pulling not necessary
 
