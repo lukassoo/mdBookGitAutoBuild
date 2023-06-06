@@ -8,7 +8,7 @@ This is a solution for that.
 
 This app can pull a Git repository, rebuild mdBook and host the files.
 
-For ease of use it comes as a docker container that you configure with the run command:
+For ease of use it comes as a [docker container](https://hub.docker.com/r/lukassoo/mdbook-git-auto-build) that you configure with the run command:
 
     docker run -d --name mdBookGitAutoBuilder \
     -e GIT_REPO_LINK=<YOUR_GIT_REPO_LINK> \
@@ -50,7 +50,8 @@ Output of "docker logs \<containerID\>":
 
 ![image](https://github.com/lukassoo/mdBookGitAutoBuild/assets/10761509/01a168ca-6b9f-4bf6-9b7d-65c48df23f61)
 
-If you want to access private repositories you have to go and add this public key to the account so that this auto builder can access the repository.
+If you want to access private repositories you have to go and add this public key to the account so that this auto builder can access the repository.  
+The builder will only ever need read-only access so a dedicated account with read-only access for the target repo is recommended.
 
 If you want to access a public repository this is not necessary.
 
