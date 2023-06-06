@@ -58,7 +58,7 @@ On the first start a few things will happen:
 
 Output of "docker logs \<containerID\>":
 
-![image](https://github.com/lukassoo/mdBookGitAutoBuild/assets/10761509/01a168ca-6b9f-4bf6-9b7d-65c48df23f61)
+![image](https://github.com/lukassoo/mdBookGitAutoBuild/assets/10761509/528d463a-147e-43c8-9ebc-6c1db80d6913)
 
 If you want to access private repositories you have to go and add this public key to the account so that this auto builder can access the repository.  
 The builder will only ever need read-only access so a dedicated account with read-only access for the target repo is recommended.
