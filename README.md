@@ -16,6 +16,7 @@ For ease of use it comes as a [docker container](https://hub.docker.com/r/lukass
     -e REPO_PULL_INTERVAL_HOURS='24' \
     -v /root/.ssh:/root/.ssh \
     -p 80:80 \
+    --restart unless-stopped \
     lukassoo/mdbook-git-auto-build:latest
 
 1. (Optional) You can give the container a different name - If you have multiple different docs for example you can name it something like "mdBookGitAutoBuilder-Project1"
@@ -39,6 +40,7 @@ Use with web hook:
     -v /root/.ssh:/root/.ssh \
     -p 80:80 \
     -p 8080:8080 \
+    --restart unless-stopped \
     lukassoo/mdbook-git-auto-build:latest
 
 Either USE_PULL_ON_INTERVAL or USE_WEB_HOOK must be used, else there is no point in even running since there will never by any pulling/updating  
