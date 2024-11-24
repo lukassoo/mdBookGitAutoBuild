@@ -1,10 +1,13 @@
 ﻿using System.Text;
 using CliWrap;
+using Serilog;
 
 namespace mdBookGitAutoBuild.Utilities;
 
 public static class SshKeyScan
 {
+    static readonly Serilog.ILogger log = Log.ForContext(typeof(SshKeyScan));
+    
     public static async Task<bool> ScanAndTrust(string repoLink)
     {
         string domain;
@@ -50,16 +53,16 @@ public static class SshKeyScan
         }
         catch (Exception)
         {
-            Console.WriteLine("Failed to run ssh-keyscan, output: ");
-            Console.WriteLine(output.ToString());
+            log.Error("Failed to run ssh-keyscan, output: ");
+            log.Error(output.ToString());
             return false;
         }
 
         const string knownHostsFile = "/root/.ssh/known_hosts";
 
 #if DEBUG
-        Console.WriteLine("Keyscan output:");
-        Console.WriteLine(output.ToString());
+        log.Information("Keyscan output:");
+        log.Information(output.ToString());
 #endif
         
         if (File.Exists(knownHostsFile))

@@ -1,15 +1,19 @@
 ﻿using System.Net;
+using Serilog;
 
 namespace mdBookGitAutoBuild.Utilities;
 
 public static class WebHookListener
 {
-    static HttpListener httpListener = new();
+    static readonly Serilog.ILogger log = Log.ForContext(typeof(WebHookListener));
+    
+    static readonly HttpListener httpListener = new();
 
     public static event Action? ReceivedUpdate;
     
     public static void Start()
     {
+        log.Information("Starting listening on \":8080/hook\"");
         httpListener.Prefixes.Add("http://+:8080/hook/");
         httpListener.Start();
 

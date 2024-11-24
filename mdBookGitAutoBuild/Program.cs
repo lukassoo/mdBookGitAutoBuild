@@ -1,36 +1,44 @@
 ﻿using mdBookGitAutoBuild.Utilities;
+using Serilog;
+using ILogger = Serilog.ILogger;
 
 namespace mdBookGitAutoBuild;
 
 internal static class Program
 {
+    static ILogger log = null!;
     static string lastCommitTime = string.Empty;
 
     static async Task Main()
     {
-        Console.WriteLine("Starting");
+        LoggerConfiguration loggerConfig = new();
+        loggerConfig.MinimumLevel.Verbose();
+        loggerConfig.WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}][{Level:u3}][{Properties:j}] {Message:lj}{NewLine}{Exception}");
+        
+        Log.Logger = loggerConfig.CreateLogger(); 
+        log = Log.Logger.ForContext(typeof(Program));
+        
+        log.Information("Starting");
 
         if (!SshKeygen.HasKey())
         {
-            Console.WriteLine("No ssh keys found, generating...");
-
+            log.Information("No ssh keys found, generating...");
+        
             bool keyGenerated = await SshKeygen.GenerateKey();
             if (!keyGenerated)
             {
-                Console.WriteLine("Failed to generate new ssh keys - can't work");
-                
-                Environment.Exit(1);
+                log.Error("Failed to generate new ssh keys - can't work");
+                goto shutdown;
             }
-
-            Console.WriteLine("New ssh keys generated, public key:");
-            Console.WriteLine("--------------------------------------------------------------------");
-            Console.WriteLine();
-            Console.WriteLine(SshKeygen.GetPublicKey());
-            Console.WriteLine("--------------------------------------------------------------------");
-            Console.WriteLine("Use this to grant access to private repositories - grant read-only permissions of course)");
-            Console.WriteLine("Exiting since you need to add the key to git first - do that and restart the container");
+        
+            log.Information("New ssh keys generated, public key:");
+            log.Information("--------------------------------------------------------------------\n\n");
+            log.Information("{publicKey}\n",SshKeygen.GetPublicKey());
+            log.Information("--------------------------------------------------------------------");
+            log.Information("Use this to grant access to private repositories - grant read-only permissions of course");
+            log.Information("Exiting since you need to add the key to git first - do that and restart the container");
             
-            Environment.Exit(1);
+            goto shutdown;
         }
         
         if (!Git.IsRepoCloned())
@@ -38,82 +46,80 @@ internal static class Program
             string? repoLink = Environment.GetEnvironmentVariable("GIT_REPO_LINK");
             if (string.IsNullOrEmpty(repoLink))
             {
-                Console.WriteLine("No repo link provided - set the GIT_REPO_LINK environment variable with a valid git repo link");
-                
-                Environment.Exit(1);
+                log.Error("No repo link provided - set the GIT_REPO_LINK environment variable with a valid git repo link");
+                goto shutdown;
             }
 
-            Console.WriteLine("Scanning repo ssh keys and adding to trusted");
+            log.Information("Scanning repo ssh keys and adding to trusted");
             bool keyScanCompleted = await SshKeyScan.ScanAndTrust(repoLink);
             if (!keyScanCompleted)
             {
-                Console.WriteLine("Scanning failed, check repo link");
-                
-                Environment.Exit(1);
+                log.Error("Scanning failed, check repo link");
+                goto shutdown;
             }
             
             bool cloneCompleted = await Git.Clone(repoLink);
 
             if (!cloneCompleted)
             {
-                Console.WriteLine("Clone failed, exiting");
-                
-                Environment.Exit(1);
+                log.Error("Clone failed, exiting");
+                goto shutdown;
             }
         }
         else
         {
-            Console.WriteLine("Git Repo is already cloned");
-            Console.WriteLine("Pulling...");
+            log.Information("Git Repo is already cloned");
+            log.Information("Pulling...");
             
             bool pullCompleted = await Git.Pull();
             if (!pullCompleted)
             {
-                Console.WriteLine("Failed to pull repo");
+                log.Warning("Failed to pull repo");
             }
         }
 
         lastCommitTime = await Git.GetLastCommitTime();
-        Console.WriteLine("Last commit time: " + lastCommitTime);
+        DateTime lastCommitDateTime = DateTimeOffset.FromUnixTimeSeconds(Convert.ToInt64(lastCommitTime)).DateTime;
         
-        Console.WriteLine("Building mdBook");
+        log.Information("Last commit time: " + lastCommitDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+        
+        log.Information("Building mdBook");
         await MdBook.Build();
         
-        Console.WriteLine("Staring http server (port 80)");
-        Python3.StartHttpServer();
+        HttpServer.Start();
 
         bool usingAnyUpdateMethod = false;
         
         string? shouldUseWebHook = Environment.GetEnvironmentVariable("USE_WEB_HOOK");
         if (!string.IsNullOrEmpty(shouldUseWebHook))
         {
-            Console.WriteLine("Detected USE_WEB_HOOK - starting http web hook listener");
-
+            log.Information("Detected USE_WEB_HOOK - starting http web hook listener");
+        
             StartWebHook();
             usingAnyUpdateMethod = true;
         }
-
+        
         string? shouldPullOnInterval = Environment.GetEnvironmentVariable("USE_PULL_ON_INTERVAL");
         if (!string.IsNullOrEmpty(shouldPullOnInterval))
         {
-            Console.WriteLine("Detected USE_PULL_ON_INTERVAL - will pull repo every set time interval");
-
+            log.Information("Detected USE_PULL_ON_INTERVAL - will pull repo every set time interval");
+        
             StartRepoPullOnInterval();
             usingAnyUpdateMethod = true;
         }
-
+        
         if (!usingAnyUpdateMethod)
         {
-            Console.WriteLine("No update method used, define environment variables: USE_WEB_HOOK or USE_PULL_ON_INTERVAL (optionally both)");
-            Console.WriteLine("No point running without a way to update - exiting");
+            log.Error("No update method used, define environment variables: USE_WEB_HOOK or USE_PULL_ON_INTERVAL (optionally both)");
+            log.Error("No point running without a way to update - exiting");
             
-            Environment.Exit(1);
+            goto shutdown;
         }
         
-        while (!Environment.HasShutdownStarted)
-        {
-            await Task.Delay(10_000);
-        }
+        await Task.Delay(-1);
+        
+        shutdown:
+        await Log.CloseAndFlushAsync();
     }
 
     static void StartWebHook()
@@ -121,23 +127,23 @@ internal static class Program
         WebHookListener.ReceivedUpdate +=
             async () =>
             {
-                Console.WriteLine("Web hook request received");
-                Console.WriteLine("Pulling repo...");
+                log.Information("Web hook request received");
+                log.Information("Pulling repo...");
                 await Git.Pull();
 
                 string newCommitTime = await Git.GetLastCommitTime();
                 if (lastCommitTime == newCommitTime)
                 {
-                    Console.WriteLine("No new commits - skipping mdBook rebuild");
+                    log.Information("No new commits - skipping mdBook rebuild");
                     return;
                 }
                 
                 lastCommitTime = newCommitTime;
 
-                Console.WriteLine("Building mdBook...");
+                log.Information("Building mdBook...");
                 await MdBook.Build();
                 
-                Console.WriteLine("Update completed");
+                log.Information("Update completed");
             };
 
         WebHookListener.Start();
@@ -154,35 +160,35 @@ internal static class Program
             
             if (!string.IsNullOrEmpty(repoPullInterval))
             {
-                Console.WriteLine("Detected REPO_PULL_INTERVAL_HOURS variable");
+                log.Information("Detected REPO_PULL_INTERVAL_HOURS variable");
 
                 if (int.TryParse(repoPullInterval, out int repoPullIntervalHours))
                 {
                     pullIntervalTimeSpan = TimeSpan.FromHours(repoPullIntervalHours);
                     
-                    Console.WriteLine("Successfully parsed target interval: " + repoPullIntervalHours + 
-                                      " (pull every " + pullIntervalTimeSpan.TotalHours + " hours)");
+                    log.Information("Successfully parsed target interval: " + repoPullIntervalHours + 
+                                    " (pull every " + pullIntervalTimeSpan.TotalHours + " hours)");
                 }
                 else
                 {
-                    Console.WriteLine("Failed to parse REPO_PULL_INTERVAL_HOURS, using default pull interval: " + pullIntervalTimeSpan.TotalHours + " hours");
+                    log.Information("Failed to parse REPO_PULL_INTERVAL_HOURS, using default pull interval: " + pullIntervalTimeSpan.TotalHours + " hours");
                 }
             }
             else
             {
-                Console.WriteLine("No REPO_PULL_INTERVAL_HOURS variable detected - default interval: " + pullIntervalTimeSpan.TotalHours + " hours");
+                log.Information("No REPO_PULL_INTERVAL_HOURS variable detected - default interval: " + pullIntervalTimeSpan.TotalHours + " hours");
             }
 
             while (!Environment.HasShutdownStarted)
             {
                 await Task.Delay((int)pullIntervalTimeSpan.TotalMilliseconds);
                 
-                Console.WriteLine("Pulling on interval");
+                log.Information("Pulling on interval");
                 
                 bool successfulPull = await Git.Pull();
                 if (!successfulPull)
                 {
-                    Console.WriteLine("Failed to pull");
+                    log.Warning("Failed to pull");
                     continue;
                 }
 
@@ -191,13 +197,13 @@ internal static class Program
                 {
                     lastCommitTime = newCommitTime;
 
-                    Console.WriteLine("Detected a new commit, rebuilding mdBook");
+                    log.Information("Detected a new commit, rebuilding mdBook");
                     
                     await MdBook.Build();
                 }
                 else
                 {
-                    Console.WriteLine("No new commits - skipping mdBook rebuild");
+                    log.Information("No new commits - skipping mdBook rebuild");
                 }
             }
             

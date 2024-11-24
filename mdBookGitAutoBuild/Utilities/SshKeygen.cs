@@ -1,9 +1,12 @@
 ﻿using CliWrap;
+using Serilog;
 
 namespace mdBookGitAutoBuild.Utilities;
 
 public static class SshKeygen
 {
+    static readonly Serilog.ILogger log = Log.ForContext(typeof(Git));
+    
     public static bool HasKey()
     {
         return File.Exists("/root/.ssh/id_ed25519") &&
@@ -16,18 +19,18 @@ public static class SshKeygen
         {
             File.Delete("/root/.ssh/id_ed25519");
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Console.WriteLine("Could not delete id_ed25519 file");
+            log.Error("Could not delete id_ed25519 file");
         }
 
         try
         {
             File.Delete("/root/.ssh/id_ed25519.pub");
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Console.WriteLine("Could not delete id_ed25519.pub file");
+            log.Error("Could not delete id_ed25519.pub file");
         }
     }
 
@@ -46,7 +49,7 @@ public static class SshKeygen
 
             return true;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return false;
         }
@@ -56,7 +59,7 @@ public static class SshKeygen
     {
         if (!HasKey())
         {
-            Console.WriteLine("No keys found, returning empty string");
+            log.Warning("No keys found, returning empty string");
             return string.Empty;
         }
 

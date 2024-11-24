@@ -1,10 +1,13 @@
 ﻿using System.Text;
 using CliWrap;
+using Serilog;
 
 namespace mdBookGitAutoBuild.Utilities;
 
 public static class Git
 {
+    static readonly Serilog.ILogger log = Log.ForContext(typeof(Git));
+    
     static readonly string repoDirectory = Directory.GetCurrentDirectory() + "/GitRepo";
 
     public static bool IsRepoCloned()
@@ -17,7 +20,7 @@ public static class Git
     {
         if (IsRepoCloned())
         {
-            Console.WriteLine("Repository already cloned");
+            log.Information("Repository already cloned");
             return false;
         }
         
@@ -26,7 +29,7 @@ public static class Git
             Directory.CreateDirectory(repoDirectory);
         }
 
-        Console.WriteLine("Cloning...");
+        log.Information("Cloning...");
 
         StringBuilder output = new();
         
@@ -41,12 +44,11 @@ public static class Git
         }
         catch (Exception)
         {
-            Console.WriteLine("Failed to clone, output: ");
-            Console.WriteLine(output.ToString());
+            log.Error("Failed to clone, output: \n{output}", output.ToString());
             return false;
         }
         
-        Console.WriteLine("Cloning completed");
+        log.Information("Cloning completed");
         return true;
     }
     
@@ -67,8 +69,7 @@ public static class Git
         }
         catch (Exception)
         {
-            Console.WriteLine("Failed to pull repo, output: ");
-            Console.WriteLine(output.ToString());
+            log.Error("Failed to pull repo, output: \n{output}", output.ToString());
             return false;
         }
     }
@@ -85,6 +86,6 @@ public static class Git
             .WithValidation(CommandResultValidation.None)
             .ExecuteAsync();
         
-        return commandOutput.ToString();
+        return commandOutput.ToString().TrimEnd('\n');
     }
 }
