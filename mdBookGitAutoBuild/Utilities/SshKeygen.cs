@@ -5,7 +5,7 @@ namespace mdBookGitAutoBuild.Utilities;
 
 public static class SshKeygen
 {
-    static readonly Serilog.ILogger log = Log.ForContext(typeof(Git));
+    static readonly Serilog.ILogger log = Log.ForContext(typeof(SshKeygen));
     
     public static bool HasKey()
     {
