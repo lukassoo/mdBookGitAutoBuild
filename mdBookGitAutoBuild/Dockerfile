@@ -4,8 +4,8 @@ COPY bin/Release/net9.0/publish/ app/
 WORKDIR /app
 
 RUN apk add --no-cache --update git openssh-keygen openssh-client
-RUN /bin/sh -c 'wget https://github.com/rust-lang/mdBook/releases/download/v0.4.42/mdbook-v0.4.42-x86_64-unknown-linux-musl.tar.gz && \
-    tar xzf mdbook-v0.4.42-x86_64-unknown-linux-musl.tar.gz && \
+RUN /bin/sh -c 'wget https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz && \
+    tar xzf mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz && \
     chmod +x mdbook && \
     mv mdbook /usr/bin/'
 EXPOSE 80
